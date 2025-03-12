@@ -1,6 +1,6 @@
 # TuneBoxed iOS App
 
-A stylish, Instagram-inspired social media app for sharing and discovering music.
+A stylish, social media app for sharing and discovering music, while also created a community. 
 
 ## Features
 
