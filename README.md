@@ -24,7 +24,7 @@ A stylish, Instagram-inspired social media app for sharing and discovering music
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/tuneboxed-ios.git
+git clone https://github.com/boxzr/tuneboxed-ios.git
 ```
 
 2. Open the project in Xcode
