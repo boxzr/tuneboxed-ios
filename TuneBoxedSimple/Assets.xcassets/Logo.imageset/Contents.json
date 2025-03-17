@@ -1,14 +1,17 @@
 {
   "images" : [
     {
+      "filename" : "tuneboxed-logo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "tuneboxed-logo.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
+      "filename" : "tuneboxed-logo.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
