@@ -78,6 +78,9 @@ enum PostType {
 // Sample posts
 let samplePosts = [
     Post(songTitle: "Dreams", artist: "Fleetwood Mac", username: "boxzr", likes: 42, type: .songOfWeek, genre: "70's Rock"),
+    Post(songTitle: "Whole Lotta Red", artist: "Playboi Carti", username: "playboicarti", likes: 18723, type: .regular, genre: "Hip Hop"),
+    Post(songTitle: "Rebel Yell", artist: "Billy Idol", username: "billyidol", likes: 5642, type: .regular, genre: "80's Rock"),
+    Post(songTitle: "Octopus's Garden", artist: "The Beatles", username: "ringostarr", likes: 12086, type: .regular, genre: "60's Rock"),
     Post(songTitle: "Take On Me", artist: "a-ha", username: "musiclover", likes: 37, type: .regular),
     Post(songTitle: "Mr. Brightside", artist: "The Killers", username: "rockfan", likes: 53, type: .showerBeer)
 ]
@@ -99,116 +102,104 @@ let communities = [
 // MARK: - Launch Screen
 struct LaunchScreen: View {
     @Binding var showLaunchScreen: Bool
-    @State private var scale: CGFloat = 1.0
-    @State private var rotation: Double = 0
-    @State private var pulseOpacity: Double = 0.6
-    @State private var bufferProgress: CGFloat = 0.0
+    @State private var logoScale: CGFloat = 0.8
+    @State private var textOpacity: Double = 0.0
+    @State private var progress = 0.0
     
     var body: some View {
         ZStack {
-            Color.black
+            // Clean white background like Tinder
+            Color.white
                 .ignoresSafeArea()
             
-            // Background animated elements
-            ZStack {
-                // Animated circles
-                ForEach(0..<5) { i in
+            VStack(spacing: 30) {
+                // Logo container - exactly like Tinder's style
+                ZStack {
+                    // Glowing outer circle
                     Circle()
-                        .stroke(lineWidth: 2)
-                        .fill(Color.tuneBoxedGradient)
-                        .frame(width: 100 + CGFloat(i * 50), height: 100 + CGFloat(i * 50))
-                        .opacity(0.1 + (0.05 * Double(i)))
-                        .scaleEffect(pulseOpacity + (0.05 * Double(i)))
+                        .fill(Color.logoMain.opacity(0.1))
+                        .frame(width: 110, height: 110)
+                    
+                    // Progress ring around logo
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.logoMain, Color.logoAccent]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ),
+                            style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                        )
+                        .frame(width: 102, height: 102)
+                        .rotationEffect(Angle(degrees: -90))
+                    
+                    // White background for logo
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 90, height: 90)
+                        .shadow(color: Color.gray.opacity(0.2), radius: 4, x: 0, y: 2)
+                    
+                    // The logo itself
+                    Image("Logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 70, height: 70)
+                        .clipShape(Circle())
+                        .scaleEffect(logoScale)
                 }
+                .padding(.top, 40)
                 
-                // Glowing background
-                Circle()
-                    .fill(Color.logoMain.opacity(0.2))
-                    .frame(width: 200, height: 200)
-                    .blur(radius: 20)
+                // App Name - Tinder style
+                Text("TuneBoxed")
+                    .font(.system(size: 38, weight: .bold))
+                    .foregroundColor(Color.logoMain)
+                    .opacity(textOpacity)
+                
+                // Updated tagline as requested
+                Text("Your music taste, your sound.")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(Color.gray.opacity(0.7))
+                    .opacity(textOpacity)
+                
+                Spacer()
+                
+                // Tinder-style loading indicator at bottom
+                HStack(spacing: 8) {
+                    ForEach(0..<3) { i in
+                        Circle()
+                            .fill(Color.logoMain)
+                            .frame(width: 8, height: 8)
+                            .opacity(0.2 + (Double(i) * 0.3))
+                    }
+                }
+                .padding(.bottom, 50)
             }
-            .onAppear {
-                withAnimation(Animation.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
-                    pulseOpacity = 1.0
+            .padding()
+        }
+        .onAppear {
+            // Start animations
+            withAnimation(Animation.spring(dampingFraction: 0.7).delay(0.2)) {
+                logoScale = 1.0
+            }
+            
+            withAnimation(Animation.easeIn(duration: 0.8).delay(0.3)) {
+                textOpacity = 1.0
+            }
+            
+            // Animate the progress ring
+            Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { timer in
+                withAnimation {
+                    if progress < 1.0 {
+                        progress += 0.01
+                    } else {
+                        timer.invalidate()
+                    }
                 }
             }
             
-            VStack(spacing: 30) {
-                // Logo in a circle
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 160, height: 160)
-                        .shadow(color: Color.logoMain.opacity(0.5), radius: 15, x: 0, y: 0)
-                    
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 160, height: 160)
-                        .clipShape(Circle())
-                        .scaleEffect(scale)
-                        .rotationEffect(.degrees(rotation))
-                }
-                .onAppear {
-                    withAnimation(Animation.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
-                        scale = 0.95
-                        rotation = 5
-                    }
-                }
-                
-                Text("TuneBoxed")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .shadow(color: Color.logoMain.opacity(0.8), radius: 10, x: 0, y: 0)
-                
-                Text("Share Your Sound")
-                    .font(.system(size: 20, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.8))
-                    .padding(.top, -15)
-                
-                // Custom buffering animation
-                VStack(spacing: 15) {
-                    // Circular progress bar
-                    ZStack {
-                        Circle()
-                            .stroke(lineWidth: 4)
-                            .opacity(0.3)
-                            .foregroundColor(.white)
-                            .frame(width: 50, height: 50)
-                        
-                        Circle()
-                            .trim(from: 0.0, to: bufferProgress)
-                            .stroke(style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
-                            .foregroundColor(Color.logoAccent)
-                            .rotationEffect(Angle(degrees: 270.0))
-                            .frame(width: 50, height: 50)
-                            .animation(Animation.linear(duration: 0.1))
-                        
-                        // Pulsing dot in the center
-                        Circle()
-                            .fill(Color.logoMain)
-                            .frame(width: 10, height: 10)
-                            .scaleEffect(pulseOpacity)
-                    }
-                    
-                    Text("Loading...")
-                        .font(.instagramCaption)
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                .onAppear {
-                    // Animate the buffer progress
-                    Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { timer in
-                        bufferProgress += 0.01
-                        if bufferProgress >= 1.0 {
-                            bufferProgress = 0.0
-                        }
-                    }
-                }
-            }
-        }
-        .onAppear {
-            // Dismiss launch screen after 4 seconds
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            // Dismiss launch screen after 4 seconds (extended from 2.5)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
                 withAnimation(.easeOut(duration: 0.8)) {
                     showLaunchScreen = false
                 }
@@ -242,7 +233,7 @@ struct PostView: View {
                 Text(post.username)
                     .font(.instagramHeadline)
                 
-                if post.username == "boxzr" {
+                if post.username == "boxzr" || post.username == "playboicarti" || post.username == "billyidol" || post.username == "ringostarr" {
                     Image(systemName: "checkmark.seal.fill")
                         .foregroundColor(.blue)
                         .font(.system(size: 16))
@@ -378,14 +369,15 @@ struct FeedView: View {
 struct ShowerBeerView: View {
     // Premium feature
     @State private var isPremium = false
+    @State private var selectedMusicService = 0
     
     // Sample shower beer playlist
     let showerBeerSongs = [
-        (title: "Blinding Lights", artist: "The Weeknd", duration: "3:20"),
-        (title: "Levitating", artist: "Dua Lipa", duration: "3:23"),
-        (title: "Heat Waves", artist: "Glass Animals", duration: "3:58"),
-        (title: "Watermelon Sugar", artist: "Harry Styles", duration: "2:54"),
-        (title: "Don't Start Now", artist: "Dua Lipa", duration: "3:03")
+        (title: "Blinding Lights", artist: "The Weeknd", duration: "3:20", service: "Spotify"),
+        (title: "Levitating", artist: "Dua Lipa", duration: "3:23", service: "Apple Music"),
+        (title: "Heat Waves", artist: "Glass Animals", duration: "3:58", service: "Spotify"),
+        (title: "Watermelon Sugar", artist: "Harry Styles", duration: "2:54", service: "Apple Music"),
+        (title: "Don't Start Now", artist: "Dua Lipa", duration: "3:03", service: "Spotify")
     ]
     
     var body: some View {
@@ -404,10 +396,6 @@ struct ShowerBeerView: View {
                             
                             // Playlist info overlay
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Shower Beer")
-                                    .font(.system(size: 28, weight: .bold))
-                                    .foregroundColor(.white)
-                                
                                 Text("The ultimate shower playlist")
                                     .font(.instagramSubheadline)
                                     .foregroundColor(.white.opacity(0.9))
@@ -420,6 +408,16 @@ struct ShowerBeerView: View {
                                 .font(.instagramCaption)
                                 .foregroundColor(.white.opacity(0.8))
                                 .padding(.top, 5)
+                                
+                                // Music service picker
+                                Picker("Music Service", selection: $selectedMusicService) {
+                                    Text("Spotify").tag(0)
+                                    Text("Apple Music").tag(1)
+                                }
+                                .pickerStyle(SegmentedPickerStyle())
+                                .background(Color.black.opacity(0.2))
+                                .cornerRadius(8)
+                                .padding(.top, 8)
                             }
                             .padding(24)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -453,9 +451,15 @@ struct ShowerBeerView: View {
                                 
                                 Spacer()
                                 
-                                Text(showerBeerSongs[index].duration)
-                                    .font(.instagramCaption)
-                                    .foregroundColor(.gray)
+                                // Music service icon
+                                HStack {
+                                    Image(systemName: showerBeerSongs[index].service == "Spotify" ? "s.circle.fill" : "applelogo")
+                                        .foregroundColor(showerBeerSongs[index].service == "Spotify" ? Color(red: 0.11, green: 0.73, blue: 0.33) : .black)
+                                    
+                                    Text(showerBeerSongs[index].duration)
+                                        .font(.instagramCaption)
+                                        .foregroundColor(.gray)
+                                }
                             }
                             .padding(.vertical, 12)
                             .padding(.horizontal, 20)
@@ -528,147 +532,433 @@ struct CommunitiesView: View {
     @State private var isPremium = false
     @State private var selectedServer = 0
     
-    // Discord-like servers
+    // Futuristic servers with better names
     let servers = [
-        "Indie Rock",
-        "80's Synth",
-        "Hip Hop",
-        "Jazz",
-        "EDM"
+        "Indie Revolution",
+        "Synth Dimension", 
+        "Hip Hop Universe",
+        "Jazz Odyssey",
+        "EDM Collective"
     ]
     
     // Discord-like channels
     let channels = [
-        ["general", "song-requests", "new-releases", "band-discussion"],
-        ["synthwave", "new-retro", "outrun", "recommendations"],
-        ["beats", "lyrics", "producers", "hip-hop-history"],
-        ["bebop", "fusion", "contemporary", "classics"],
-        ["house", "techno", "trance", "drum-n-bass"]
+        ["general-chat", "song-recommendations", "new-releases", "artist-spotlight"],
+        ["retro-wave", "cyber-synth", "analog-vibes", "track-showcase"],
+        ["beat-production", "lyrical-masters", "underground", "sampling"],
+        ["classic-revival", "modern-fusion", "live-sessions", "theory-talk"],
+        ["house-nation", "techno-realm", "bass-dimension", "festival-talk"]
+    ]
+    
+    // Celebrity users with profiles
+    let celebrities = [
+        (name: "playboicarti", displayName: "Playboi Carti", isVerified: true, followers: "8.2M"),
+        (name: "billyidol", displayName: "Billy Idol", isVerified: true, followers: "2.4M"),
+        (name: "ringostarr", displayName: "Ringo Starr", isVerified: true, followers: "5.7M")
     ]
     
     var body: some View {
-        ZStack {
-            // Discord-like layout
-            HStack(spacing: 0) {
-                // Server sidebar
-                VStack(spacing: 15) {
-                    ForEach(0..<servers.count, id: \.self) { index in
-                        Button(action: {
-                            withAnimation {
-                                selectedServer = index
-                            }
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(selectedServer == index ? Color.neonBlue : Color.gray.opacity(0.3))
-                                    .frame(width: 50, height: 50)
-                                
-                                Text(String(servers[index].prefix(1)))
-                                    .font(.futuristicTitle)
-                                    .foregroundColor(.white)
-                            }
-                            .overlay(
-                                Circle()
-                                    .stroke(selectedServer == index ? Color.white : Color.clear, lineWidth: 2)
-                                    .padding(2)
-                            )
-                        }
-                    }
-                    
-                    Spacer()
-                }
-                .frame(width: 70)
-                .padding(.vertical)
-                .background(Color(.systemGray6))
+        VStack(spacing: 0) {
+            // Minimal navigation header
+            HStack {
+                Text("Communities")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.primary)
                 
-                // Channels list
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(servers[selectedServer])
-                        .font(.futuristicTitle)
-                        .padding()
+                Spacer()
+                
+                Image(systemName: "sparkles")
+                    .foregroundColor(Color.logoMain)
+                    .font(.system(size: 22))
+            }
+            .padding(.horizontal)
+            .padding(.top, 15)
+            .padding(.bottom, 10)
+            
+            // Main content
+            ZStack {
+                // Professional futuristic communities view
+                VStack(spacing: 0) {
+                    // Server selection - horizontal scrolling icons
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 20) {
+                            ForEach(0..<servers.count, id: \.self) { index in
+                                Button(action: {
+                                    withAnimation(.spring()) {
+                                        selectedServer = index
+                                    }
+                                }) {
+                                    VStack(spacing: 8) {
+                                        // Server icon
+                                        ZStack {
+                                            Circle()
+                                                .fill(
+                                                    LinearGradient(
+                                                        gradient: selectedServer == index ?
+                                                            Gradient(colors: [Color.logoMain, Color.logoAccent]) :
+                                                            Gradient(colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.2)]),
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    )
+                                                )
+                                                .frame(width: 65, height: 65)
+                                                .shadow(color: selectedServer == index ? Color.logoMain.opacity(0.4) : .clear, radius: 8, x: 0, y: 0)
+                                            
+                                            Text(String(servers[index].prefix(1)))
+                                                .font(.system(size: 26, weight: .bold, design: .rounded))
+                                                .foregroundColor(.white)
+                                        }
+                                        
+                                        // Server name
+                                        Text(servers[index])
+                                            .font(.system(size: 12, weight: selectedServer == index ? .semibold : .medium))
+                                            .foregroundColor(selectedServer == index ? .primary : .gray)
+                                            .lineLimit(1)
+                                    }
+                                    .frame(width: 80)
+                                    .scaleEffect(selectedServer == index ? 1.1 : 1.0)
+                                    .animation(.spring(), value: selectedServer)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 15)
+                    }
                     
                     Divider()
                     
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("TEXT CHANNELS")
-                                .font(.futuristicCaption)
-                                .foregroundColor(.gray)
-                                .padding(.horizontal)
-                                .padding(.top, 10)
+                    // Active community display
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Community header
+                        HStack {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [Color.logoMain, Color.logoAccent]),
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 40, height: 40)
+                                
+                                Text(servers[selectedServer].prefix(1))
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                            }
                             
-                            ForEach(channels[selectedServer], id: \.self) { channel in
-                                HStack {
-                                    Image(systemName: "number")
-                                        .foregroundColor(.gray)
-                                    
-                                    Text(channel)
-                                        .font(.futuristicBody)
-                                        .foregroundColor(.primary)
-                                    
-                                    Spacer()
-                                }
-                                .padding(.horizontal)
-                                .padding(.vertical, 8)
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(4)
-                                .padding(.horizontal, 8)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(servers[selectedServer])
+                                    .font(.system(size: 18, weight: .bold))
+                                
+                                Text("\(Int.random(in: 1200...8500)) members")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {}) {
+                                Image(systemName: "bell")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.gray)
+                                    .padding(8)
+                                    .background(Circle().fill(Color(.systemGray6)))
                             }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        
+                        // Member tabs
+                        HStack(spacing: 0) {
+                            ForEach(["Channels", "Members", "About"], id: \.self) { tab in
+                                Button(action: {}) {
+                                    Text(tab)
+                                        .font(.system(size: 14, weight: tab == "Channels" ? .semibold : .regular))
+                                        .foregroundColor(tab == "Channels" ? .primary : .gray)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(tab == "Channels" ? Color(.systemGray6) : Color.clear)
+                                }
+                            }
+                        }
+                        .background(Color(.systemGray6).opacity(0.3))
+                        
+                        // Celebrity featured section
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 5) {
+                                // Featured artists
+                                Text("FEATURED ARTISTS")
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundColor(Color.logoMain)
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 16)
+                                    .padding(.bottom, 8)
+                                
+                                ForEach(celebrities, id: \.name) { celebrity in
+                                    HStack(spacing: 12) {
+                                        // Avatar
+                                        ZStack {
+                                            Circle()
+                                                .fill(
+                                                    LinearGradient(
+                                                        gradient: Gradient(colors: [Color.logoMain.opacity(0.6), Color.logoAccent.opacity(0.6)]),
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    )
+                                                )
+                                                .frame(width: 44, height: 44)
+                                            
+                                            Text(String(celebrity.name.prefix(1).uppercased()))
+                                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                                .foregroundColor(.white)
+                                        }
+                                        
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            // Username with verified badge
+                                            HStack(spacing: 4) {
+                                                Text("@\(celebrity.name)")
+                                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                                    .foregroundColor(.primary)
+                                                
+                                                if celebrity.isVerified {
+                                                    Image(systemName: "checkmark.seal.fill")
+                                                        .foregroundColor(.blue)
+                                                        .font(.system(size: 14))
+                                                }
+                                            }
+                                            
+                                            // Display name and followers
+                                            Text("\(celebrity.displayName) • \(celebrity.followers) followers")
+                                                .font(.system(size: 12, design: .rounded))
+                                                .foregroundColor(.gray)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        // Follow button
+                                        Button(action: {}) {
+                                            Text("Follow")
+                                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.logoMain)
+                                                .cornerRadius(16)
+                                        }
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.black.opacity(0.02))
+                                    .cornerRadius(12)
+                                    .padding(.horizontal, 8)
+                                }
+                                
+                                // Channels section
+                                Text("TEXT CHANNELS")
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundColor(Color.logoMain)
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 20)
+                                    .padding(.bottom, 8)
+                                
+                                ForEach(channels[selectedServer], id: \.self) { channel in
+                                    HStack {
+                                        Image(systemName: "number")
+                                            .foregroundColor(Color.logoMain.opacity(0.7))
+                                        
+                                        Text(channel)
+                                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                                            .foregroundColor(.primary)
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "person.2")
+                                            .foregroundColor(.gray)
+                                            .font(.system(size: 12))
+                                        
+                                        Text("\(Int.random(in: 2...25))")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.gray)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color.black.opacity(0.03))
+                                    .cornerRadius(8)
+                                    .padding(.horizontal, 8)
+                                }
+                            }
+                            .padding(.bottom, 100) // Extra padding for premium overlay
+                        }
                     }
+                    .background(Color(.systemBackground))
                 }
-                .frame(maxWidth: .infinity)
-            }
-            
-            // Premium lock overlay
-            if !isPremium {
+                .opacity(0.6) // Make the content slightly visible under premium lock
+                
+                // Premium overlay with blur effect
                 ZStack {
-                    Color.black.opacity(0.85)
+                    // Modern blur effect
+                    BlurView(style: .systemThinMaterialDark)
                         .ignoresSafeArea()
                     
-                    VStack(spacing: 20) {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.white)
-                            .shadow(color: Color.neonBlue, radius: 10, x: 0, y: 0)
+                    // Glass card
+                    VStack(spacing: 24) {
+                        // Premium badge
+                        ZStack {
+                            // Animated gradient backdrop
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [Color.logoMain.opacity(0.3), Color.logoAccent.opacity(0.3)]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 120, height: 120)
+                            
+                            // Lock icon with gradient background
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [Color.logoMain, Color.logoAccent]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 80, height: 80)
+                                .overlay(
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 35))
+                                        .foregroundColor(.white)
+                                )
+                                .shadow(color: Color.logoMain.opacity(0.5), radius: 15, x: 0, y: 0)
+                        }
                         
-                        Text("Premium Feature")
-                            .font(.futuristicTitle)
-                            .foregroundColor(.white)
+                        VStack(spacing: 8) {
+                            Text("Premium Feature")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.white)
+                            
+                            Text("Connect with your favorite artists in private communities")
+                                .font(.system(size: 16))
+                                .multilineTextAlignment(.center)
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(.horizontal)
+                        }
                         
-                        Text("Upgrade to TuneBoxed Premium to access Communities")
-                            .font(.futuristicBody)
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(.white.opacity(0.8))
-                            .padding(.horizontal)
+                        // Features highlight
+                        VStack(alignment: .leading, spacing: 14) {
+                            premiumFeatureRow(icon: "person.3.fill", text: "Join private artist communities")
+                            premiumFeatureRow(icon: "music.mic", text: "Chat with verified artists")
+                            premiumFeatureRow(icon: "music.note.list", text: "Exclusive listening parties")
+                        }
+                        .padding(.top, 5)
                         
+                        // Get premium button
                         Button(action: {
                             // For demo purposes, unlock the feature
                             isPremium = true
                         }) {
-                            Text("Unlock Premium")
-                                .font(.futuristicHeadline)
+                            Text("Get Premium")
+                                .font(.system(size: 18, weight: .semibold))
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 30)
-                                .padding(.vertical, 12)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
                                 .background(
                                     LinearGradient(
-                                        gradient: Gradient(colors: [.neonBlue, .neonPink]),
+                                        gradient: Gradient(colors: [Color.logoMain, Color.logoAccent]),
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
                                 )
-                                .cornerRadius(25)
-                                .shadow(color: Color.neonBlue.opacity(0.7), radius: 10, x: 0, y: 0)
+                                .cornerRadius(30)
+                                .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
                         }
                         .padding(.top, 10)
+                        
+                        // "No Thanks" button
+                        Button(action: {}) {
+                            Text("Not Now")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white.opacity(0.7))
+                                .padding(.top, 5)
+                        }
                     }
-                    .padding()
+                    .padding(30)
+                    .background(VisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark)))
+                    .cornerRadius(20)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.white.opacity(0.3),
+                                        Color.white.opacity(0.1),
+                                        Color.clear,
+                                        Color.white.opacity(0.1)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
+                    .padding(20)
                 }
             }
         }
-        .navigationTitle("Communities")
-        .navigationBarTitleDisplayMode(.inline)
+        .background(Color(.systemBackground))
+        .edgesIgnoringSafeArea(.bottom)
+        .navigationBarHidden(true)
+    }
+    
+    // Premium feature row
+    private func premiumFeatureRow(icon: String, text: String) -> some View {
+        HStack(spacing: 15) {
+            // Icon with gradient fill
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.1))
+                    .frame(width: 36, height: 36)
+                
+                Image(systemName: icon)
+                    .foregroundColor(.white)
+                    .font(.system(size: 16))
+            }
+            
+            Text(text)
+                .foregroundColor(.white)
+                .font(.system(size: 16))
+            
+            Spacer()
+        }
+    }
+}
+
+// UIKit Blur support
+struct BlurView: UIViewRepresentable {
+    let style: UIBlurEffect.Style
+    
+    func makeUIView(context: Context) -> UIVisualEffectView {
+        return UIVisualEffectView(effect: UIBlurEffect(style: style))
+    }
+    
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
+        uiView.effect = UIBlurEffect(style: style)
+    }
+}
+
+// Visual Effect View for glass effect
+struct VisualEffectView: UIViewRepresentable {
+    var effect: UIVisualEffect?
+    
+    func makeUIView(context: UIViewRepresentableContext<Self>) -> UIVisualEffectView {
+        return UIVisualEffectView(effect: effect)
+    }
+    
+    func updateUIView(_ uiView: UIVisualEffectView, context: UIViewRepresentableContext<Self>) {
+        uiView.effect = effect
     }
 }
 
@@ -896,7 +1186,7 @@ struct ProfileView: View {
                                     .font(.system(size: 14))
                             }
                             
-                            Text("Shower beer enthusiast")
+                            Text("I love the game, I love the hustle")
                                 .font(.instagramSubheadline)
                                 .foregroundColor(.gray)
                                 .multilineTextAlignment(.center)
@@ -1112,8 +1402,6 @@ struct ContentView: View {
                     VStack {
                         Image(systemName: "drop.fill")
                         Text("Shower Beer")
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 10))
                     }
                 }
                 .tag(2)
@@ -1125,8 +1413,6 @@ struct ContentView: View {
                     VStack {
                         Image(systemName: "person.3.fill")
                         Text("Communities")
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 10))
                     }
                 }
                 .tag(3)
@@ -1144,7 +1430,7 @@ struct ContentView: View {
             .opacity(tabBarVisible ? 1 : 0)
             .onAppear {
                 // Animate tab bar appearance after launch screen dismisses
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                     withAnimation(.easeIn(duration: 0.5)) {
                         tabBarVisible = true
                     }
