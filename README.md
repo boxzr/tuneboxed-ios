@@ -1,45 +1,90 @@
-# TuneBoxed iOS App
+# TuneBoxed
 
-A stylish, social media app for sharing and discovering music, while also created a community. 
+TuneBoxed is a social music sharing app that allows users to share and discover music with friends.
 
 ## Features
 
-- Animated UI with a modern, futuristic design
-- Instagram-like feed for music sharing
-- User profiles with verified badges
-- Like and interact with music posts
-- Smooth animations and transitions
+- User authentication (login and signup)
+- Futuristic user interface with neon blue/pink themes
+- Feed of music posts
+- User profiles
+- Music playback (simulated)
 
-## Screenshots
+## Project Structure
 
-(Add screenshots of your app here)
+The app follows the MVVM (Model-View-ViewModel) architecture for clean separation of concerns:
 
-## Requirements
+```
+TuneBoxedSimple/
+├── App/                      # App entry point and main wrappers
+├── Extensions/               # Swift extensions for UI components
+├── Models/                   # Data models
+├── Services/                 # Network and other services
+├── ViewModels/               # Logic for each view
+└── Views/                    # UI components
+    ├── Auth/                 # Login and registration screens
+    ├── Common/               # Shared UI components
+    ├── Feed/                 # Home feed related views
+    ├── Features/             # Feature-specific views 
+    └── Profile/              # User profile related views
+```
 
-- iOS 14.0+
-- Xcode 12.0+
-- Swift 5.3+
+## Getting Started
 
-## Installation
+### Prerequisites
+
+- Xcode 13.0+
+- iOS 15.0+
+- Swift 5.5+
+
+### Installation
 
 1. Clone the repository
 ```bash
-git clone https://github.com/boxzr/tuneboxed-ios.git
+git clone https://github.com/yourusername/TuneBoxedSimple.git
 ```
 
 2. Open the project in Xcode
 ```bash
-cd tuneboxed-ios
+cd TuneBoxedSimple
 open TuneBoxedSimple.xcodeproj
 ```
 
-3. Build and run the application
+3. Run the project on a simulator or device
+
+## Development
+
+This project is structured with OOP principles in mind:
+
+- **Encapsulation**: Data and methods are encapsulated in appropriate models and view models
+- **Inheritance**: UI components extend from base SwiftUI views and implement shared functionality
+- **Abstraction**: Complex operations are abstracted into services
+- **Polymorphism**: Common interfaces are used for similar operations
+
+## Future Improvements
+
+- Backend integration with a real API
+- Audio playback functionality
+- User messaging and friend connections
+- Music recommendations
+- Playlist creation and sharing
+
+## Demo Account
+
+For testing, use the following credentials:
+- Email: demo@example.com
+- Password: password123
 
 ## Technologies Used
 
-- SwiftUI
-- Swift
-- Xcode
+- SwiftUI for UI
+- Combine for reactive programming
+- Swift 5 language features
+- MVVM architecture pattern
+
+## Credits
+
+Design inspiration: Instagram, Spotify, and Apple Music
 
 ## License
 

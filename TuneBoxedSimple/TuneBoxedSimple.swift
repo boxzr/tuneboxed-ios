@@ -1,6 +1,76 @@
 import SwiftUI
 
-// MARK: - Custom Colors
+/* 
+ TuneBoxed App - Modular Architecture
+ 
+ This app will be refactored following these principles:
+ 
+ 1. MVVM Architecture
+    - Models: Data structures and business logic
+    - Views: UI components 
+    - ViewModels: Connect models with views, handle business logic
+ 
+ 2. File Structure Organization:
+    - Extensions: SwiftUI extensions for UI customization
+    - Models: User, Post, etc.
+    - Views: Organized by feature (Auth, Feed, Profile, etc.)
+    - ViewModels: Business logic for each feature
+    - Services: Authentication, networking, etc.
+    - Utils: Helper functions, constants, etc.
+ 
+ 3. OOP Principles Applied:
+    - Encapsulation: Keep related data and functions together
+    - Inheritance: Use protocol inheritance for shared behavior
+    - Abstraction: Hide complex implementation details
+    - Polymorphism: Use protocols for flexible implementations
+ 
+ Note: In a real project, these would be in separate files.
+ For this demo, we'll use MARK comments to clearly separate sections.
+ */
+
+// MARK: - Project Organization
+/*
+ File Structure (if this were separated into files):
+ 
+ Extensions/
+   - Color+Extensions.swift
+   - Font+Extensions.swift
+   - View+Extensions.swift
+ 
+ Models/
+   - User.swift
+   - Post.swift
+   - PostType.swift
+ 
+ Services/
+   - AuthManager.swift
+ 
+ ViewModels/
+   - AuthViewModel.swift
+   - FeedViewModel.swift
+   - ProfileViewModel.swift
+ 
+ Views/
+   - Auth/
+     - LoginView.swift
+     - SignUpView.swift
+   - Feed/
+     - FeedView.swift
+     - PostView.swift
+   - Profile/
+     - ProfileView.swift
+     - EditProfileView.swift
+   - Common/
+     - LaunchScreen.swift
+ 
+ App/
+   - TuneBoxedApp.swift
+   - ContentView.swift
+ */
+
+// MARK: - Extensions
+
+// MARK: Color Extensions
 extension Color {
     // Logo-based colors (adjust these RGB values to match your logo)
     static let logoMain = Color(red: 0.5, green: 0.2, blue: 0.8) // Purple-ish
@@ -22,7 +92,7 @@ extension Color {
     )
 }
 
-// Custom font extension for Instagram-like look
+// MARK: Font Extensions
 extension Font {
     static func instagramFont(size: CGFloat, weight: Font.Weight = .regular) -> Font {
         return .system(size: size, weight: weight, design: .rounded)
@@ -46,12 +116,931 @@ extension Font {
     static let futuristicCaption = futuristicFont(size: 12, weight: .regular)
 }
 
+// MARK: View Extensions
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius))
+        return Path(path.cgPath)
+    }
+}
+
+// MARK: - User Authentication Models
+struct User: Identifiable, Codable {
+    var id = UUID()
+    var username: String
+    var email: String
+    var password: String // Note: In a real app, never store plain text passwords
+    var isVerified: Bool = true // Set to true by default
+    var firstName: String = ""
+    var lastName: String = ""
+    var bio: String = ""
+    var followers: Int = 0
+    var following: Int = 0
+    var dateJoined: Date = Date()
+    
+    // MARK: - Auth functionality
+    static func login(username: String, password: String) -> User? {
+        // Retrieve users from UserDefaults
+        guard let userData = UserDefaults.standard.data(forKey: "users") else {
+            return nil
+        }
+        
+        do {
+            let users = try JSONDecoder().decode([User].self, from: userData)
+            // Find user with matching credentials
+            return users.first { $0.username.lowercased() == username.lowercased() && $0.password == password }
+        } catch {
+            print("Error decoding users: \(error)")
+            return nil
+        }
+    }
+    
+    static func register(username: String, email: String, password: String) -> User? {
+        // Create new user
+        let newUser = User(username: username, email: email, password: password)
+        
+        // Get existing users
+        var users: [User] = []
+        if let userData = UserDefaults.standard.data(forKey: "users") {
+            do {
+                users = try JSONDecoder().decode([User].self, from: userData)
+                
+                // Check if username already exists
+                if users.contains(where: { $0.username.lowercased() == username.lowercased() }) {
+                    return nil // Username already taken
+                }
+                
+                // Check if email already exists
+                if users.contains(where: { $0.email.lowercased() == email.lowercased() }) {
+                    return nil // Email already taken
+                }
+                
+            } catch {
+                print("Error decoding users: \(error)")
+            }
+        }
+        
+        // Add new user to array
+        users.append(newUser)
+        
+        // Save updated users array to UserDefaults
+        do {
+            let encodedData = try JSONEncoder().encode(users)
+            UserDefaults.standard.set(encodedData, forKey: "users")
+            return newUser
+        } catch {
+            print("Error encoding users: \(error)")
+            return nil
+        }
+    }
+}
+
+// MARK: - Authentication Manager
+class AuthManager: ObservableObject {
+    @Published var currentUser: User?
+    @Published var isAuthenticated: Bool = false
+    @Published var authError: String?
+    
+    // Check if user is already logged in from previous session
+    init() {
+        // Clear all data on app start
+        UserDefaults.standard.removeObject(forKey: "users")
+        UserDefaults.standard.removeObject(forKey: "currentUser")
+        
+        if let userData = UserDefaults.standard.data(forKey: "currentUser") {
+            do {
+                currentUser = try JSONDecoder().decode(User.self, from: userData)
+                isAuthenticated = true
+            } catch {
+                print("Error decoding current user: \(error)")
+            }
+        }
+    }
+    
+    // Login user
+    func login(username: String, password: String) {
+        // Reset error message
+        authError = nil
+        
+        // Validate input
+        if username.isEmpty || password.isEmpty {
+            authError = "Please enter both username and password"
+            return
+        }
+        
+        // Attempt login
+        if let user = User.login(username: username, password: password) {
+            self.currentUser = user
+            self.isAuthenticated = true
+            
+            // Save current user to UserDefaults
+            do {
+                let encodedData = try JSONEncoder().encode(user)
+                UserDefaults.standard.set(encodedData, forKey: "currentUser")
+            } catch {
+                print("Error encoding current user: \(error)")
+            }
+        } else {
+            authError = "Invalid username or password"
+        }
+    }
+    
+    // Register new user
+    func register(username: String, email: String, password: String, confirmPassword: String) {
+        // Reset error message
+        authError = nil
+        
+        // Validate input
+        if username.isEmpty || email.isEmpty || password.isEmpty {
+            authError = "Please fill in all required fields"
+            return
+        }
+        
+        if password != confirmPassword {
+            authError = "Passwords do not match"
+            return
+        }
+        
+        // Email validation
+        if !isValidEmail(email) {
+            authError = "Please enter a valid email address"
+            return
+        }
+        
+        // Username validation
+        if username.count < 3 {
+            authError = "Username must be at least 3 characters"
+            return
+        }
+        
+        // Password validation
+        if password.count < 6 {
+            authError = "Password must be at least 6 characters"
+            return
+        }
+        
+        // Attempt registration
+        if let newUser = User.register(username: username, email: email, password: password) {
+            self.currentUser = newUser
+            self.isAuthenticated = true
+            
+            // Automatically verify the user
+            self.verifyUser()
+            
+            // Save current user to UserDefaults
+            do {
+                let encodedData = try JSONEncoder().encode(newUser)
+                UserDefaults.standard.set(encodedData, forKey: "currentUser")
+            } catch {
+                print("Error encoding current user: \(error)")
+            }
+        } else {
+            authError = "Username or email already exists"
+        }
+    }
+    
+    // Logout user
+    func logout() {
+        self.currentUser = nil
+        self.isAuthenticated = false
+        UserDefaults.standard.removeObject(forKey: "currentUser")
+    }
+    
+    // Helper function to validate email format
+    private func isValidEmail(_ email: String) -> Bool {
+        let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        let emailPred = NSPredicate(format:"SELF MATCHES %@", emailRegEx)
+        return emailPred.evaluate(with: email)
+    }
+    
+    // MARK: - User Data Access Methods
+    
+    // Update user profile information
+    func updateUserProfile(firstName: String = "", lastName: String = "", bio: String = "") {
+        guard var user = currentUser else { return }
+        
+        if !firstName.isEmpty {
+            user.firstName = firstName
+        }
+        
+        if !lastName.isEmpty {
+            user.lastName = lastName
+        }
+        
+        if !bio.isEmpty {
+            user.bio = bio
+        }
+        
+        // Update current user
+        self.currentUser = user
+        
+        // Save updated user to UserDefaults
+        do {
+            let encodedData = try JSONEncoder().encode(user)
+            UserDefaults.standard.set(encodedData, forKey: "currentUser")
+            
+            // Also update in the users array
+            updateUserInStorage(user)
+        } catch {
+            print("Error encoding current user: \(error)")
+        }
+    }
+    
+    // Update username
+    func updateUsername(newUsername: String) -> Bool {
+        guard var user = currentUser else { return false }
+        
+        // Validate username
+        if newUsername.count < 3 {
+            return false
+        }
+        
+        // Check if username is already taken
+        guard let userData = UserDefaults.standard.data(forKey: "users") else { return false }
+        
+        do {
+            let users = try JSONDecoder().decode([User].self, from: userData)
+            
+            // Check if username already exists (and isn't the current user's)
+            if users.contains(where: { $0.username.lowercased() == newUsername.lowercased() && $0.id != user.id }) {
+                return false // Username already taken
+            }
+            
+            // Update the username
+            user.username = newUsername
+            
+            // Update current user
+            self.currentUser = user
+            
+            // Save updated user to UserDefaults
+            let encodedData = try JSONEncoder().encode(user)
+            UserDefaults.standard.set(encodedData, forKey: "currentUser")
+            
+            // Also update in the users array
+            updateUserInStorage(user)
+            
+            return true
+        } catch {
+            print("Error updating username: \(error)")
+            return false
+        }
+    }
+    
+    // Verify a user
+    func verifyUser() {
+        guard var user = currentUser else { return }
+        user.isVerified = true
+        
+        // Update current user
+        self.currentUser = user
+        
+        // Save updated user to UserDefaults
+        do {
+            let encodedData = try JSONEncoder().encode(user)
+            UserDefaults.standard.set(encodedData, forKey: "currentUser")
+            
+            // Also update in the users array
+            updateUserInStorage(user)
+        } catch {
+            print("Error encoding current user: \(error)")
+        }
+    }
+    
+    // Update follower count
+    func updateFollowers(count: Int) {
+        guard var user = currentUser else { return }
+        user.followers = count
+        
+        // Update current user
+        self.currentUser = user
+        
+        // Save updated user to UserDefaults
+        do {
+            let encodedData = try JSONEncoder().encode(user)
+            UserDefaults.standard.set(encodedData, forKey: "currentUser")
+            
+            // Also update in the users array
+            updateUserInStorage(user)
+        } catch {
+            print("Error encoding current user: \(error)")
+        }
+    }
+    
+    // Update following count
+    func updateFollowing(count: Int) {
+        guard var user = currentUser else { return }
+        user.following = count
+        
+        // Update current user
+        self.currentUser = user
+        
+        // Save updated user to UserDefaults
+        do {
+            let encodedData = try JSONEncoder().encode(user)
+            UserDefaults.standard.set(encodedData, forKey: "currentUser")
+            
+            // Also update in the users array
+            updateUserInStorage(user)
+        } catch {
+            print("Error encoding current user: \(error)")
+        }
+    }
+    
+    // Get all users (for admin purposes)
+    func getAllUsers() -> [User] {
+        guard let userData = UserDefaults.standard.data(forKey: "users") else {
+            return []
+        }
+        
+        do {
+            return try JSONDecoder().decode([User].self, from: userData)
+        } catch {
+            print("Error decoding users: \(error)")
+            return []
+        }
+    }
+    
+    // Helper method to update a user in storage
+    private func updateUserInStorage(_ updatedUser: User) {
+        guard let userData = UserDefaults.standard.data(forKey: "users") else { return }
+        
+        do {
+            var users = try JSONDecoder().decode([User].self, from: userData)
+            
+            // Find and update the user
+            if let index = users.firstIndex(where: { $0.id == updatedUser.id }) {
+                users[index] = updatedUser
+                
+                // Save back to UserDefaults
+                let encodedData = try JSONEncoder().encode(users)
+                UserDefaults.standard.set(encodedData, forKey: "users")
+            }
+        } catch {
+            print("Error updating user in storage: \(error)")
+        }
+    }
+}
+
+// MARK: - Login View
+struct LoginView: View {
+    @ObservedObject var authManager: AuthManager
+    @State private var username: String = ""
+    @State private var password: String = ""
+    @State private var showSignUp = false
+    @State private var isLoading = false
+    @State private var navigateToApp = false
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Instagram-style top banner
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: 1)
+                    .padding(.top, 0)
+                
+                ScrollView {
+                    VStack(spacing: 20) {
+                        // Logo and app name
+                        VStack(spacing: 15) {
+                            Spacer().frame(height: 60)
+                            
+                            // Updated stylish logo container with subtle animation
+                            ZStack {
+                                Circle()
+                                    .fill(Color.tuneBoxedGradient)
+                                    .frame(width: 100, height: 100)
+                                    .shadow(color: Color.logoMain.opacity(0.5), radius: 10, x: 0, y: 0)
+                                
+                                Image("Logo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 80, height: 80)
+                                    .clipShape(Circle())
+                            }
+                            .padding(.bottom, 10)
+                            
+                            Text("TuneBoxed")
+                                .font(.system(size: 40, weight: .light))
+                                .tracking(0.5)
+                                .foregroundColor(.primary)
+                        }
+                        .padding(.bottom, 40)
+                        
+                        // Login form with improved password field
+                        VStack(spacing: 12) {
+                            // Username field
+                            TextField("Username", text: $username)
+                                .autocapitalization(.none)
+                                .padding()
+                                .frame(height: 50)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(5)
+                                .padding(.horizontal)
+                            
+                            // Password field - updated to work with strong passwords
+                            SecureField("Password", text: $password)
+                                .textContentType(.password) // Better support for strong passwords
+                                .autocorrectionDisabled(true)
+                                .keyboardType(.default)
+                                .padding()
+                                .frame(height: 50)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(5)
+                                .padding(.horizontal)
+                            
+                            // Error message
+                            if let error = authManager.authError {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .padding(.top, 5)
+                            }
+                            
+                            // Login button
+                            Button(action: {
+                                isLoading = true
+                                // Simulate network delay
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                    authManager.login(username: username, password: password)
+                                    isLoading = false
+                                    
+                                    // If login was successful, navigate to app
+                                    if authManager.isAuthenticated {
+                                        navigateToApp = true
+                                    }
+                                }
+                            }) {
+                                ZStack {
+                                    Rectangle()
+                                        .fill(Color.logoMain.opacity(username.isEmpty || password.isEmpty ? 0.5 : 1))
+                                        .frame(height: 50)
+                                        .cornerRadius(5)
+                                    
+                                    if isLoading {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Text("Log In")
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                            }
+                            .disabled(username.isEmpty || password.isEmpty || isLoading)
+                            .padding(.horizontal)
+                            .padding(.top, 10)
+                            
+                            // Forgot password
+                            Button(action: {
+                                // Forgot password functionality would go here
+                            }) {
+                                Text("Forgot password?")
+                                    .font(.caption)
+                                    .foregroundColor(Color.logoMain)
+                                    .padding(.top, 15)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        // Create account button
+                        VStack(spacing: 20) {
+                            Divider()
+                            
+                            Button(action: {
+                                showSignUp.toggle()
+                            }) {
+                                HStack {
+                                    Text("Don't have an account?")
+                                        .foregroundColor(.gray)
+                                    
+                                    Text("Sign Up")
+                                        .fontWeight(.bold)
+                                        .foregroundColor(Color.logoMain)
+                                }
+                                .font(.footnote)
+                            }
+                            .padding(.bottom, 20)
+                        }
+                    }
+                }
+            }
+            .navigationBarHidden(true)
+            .navigationBarBackButtonHidden(true)
+            .sheet(isPresented: $showSignUp) {
+                SignUpView(authManager: authManager, navigateToApp: $navigateToApp)
+            }
+            .fullScreenCover(isPresented: $navigateToApp) {
+                AppContentWrapper(authManager: authManager)
+            }
+        }
+    }
+}
+
+// MARK: - Sign Up View
+struct SignUpView: View {
+    @ObservedObject var authManager: AuthManager
+    @Binding var navigateToApp: Bool
+    @Environment(\.presentationMode) var presentationMode
+    
+    @State private var username: String = ""
+    @State private var email: String = ""
+    @State private var password: String = ""
+    @State private var confirmPassword: String = ""
+    @State private var isLoading = false
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Instagram-style top bar
+                HStack {
+                    Button(action: {
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.primary)
+                            .padding()
+                    }
+                    
+                    Spacer()
+                    
+                    Text("Sign Up")
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    // Balance the layout
+                    Color.clear.frame(width: 40, height: 40)
+                }
+                .padding(.top, 10)
+                
+                Divider()
+                
+                ScrollView {
+                    VStack(spacing: 25) {
+                        // App logo and welcome text
+                        VStack(spacing: 10) {
+                            // Updated logo container
+                            ZStack {
+                                Circle()
+                                    .fill(Color.tuneBoxedGradient)
+                                    .frame(width: 90, height: 90)
+                                    .shadow(color: Color.logoMain.opacity(0.5), radius: 10, x: 0, y: 0)
+                                
+                                Image("Logo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 70, height: 70)
+                                    .clipShape(Circle())
+                            }
+                            .padding(.top, 20)
+                            
+                            Text("Join TuneBoxed")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            
+                            Text("Create an account to start sharing music")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        .padding(.vertical, 15)
+                        
+                        // Simplified registration form with improved password fields
+                        VStack(spacing: 12) {
+                            // Username field
+                            TextField("Username", text: $username)
+                                .autocapitalization(.none)
+                                .padding()
+                                .frame(height: 50)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(5)
+                                .padding(.horizontal)
+                            
+                            // Email field
+                            TextField("Email", text: $email)
+                                .keyboardType(.emailAddress)
+                                .autocapitalization(.none)
+                                .padding()
+                                .frame(height: 50)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(5)
+                                .padding(.horizontal)
+                            
+                            // Password field - updated to better support strong passwords
+                            SecureField("Password", text: $password)
+                                .textContentType(.newPassword) // Better support for strong passwords
+                                .autocorrectionDisabled(true)
+                                .keyboardType(.default)
+                                .padding()
+                                .frame(height: 50)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(5)
+                                .padding(.horizontal)
+                            
+                            // Confirm password field - also updated
+                            SecureField("Confirm Password", text: $confirmPassword)
+                                .textContentType(.newPassword) // Better support for strong passwords
+                                .autocorrectionDisabled(true)
+                                .keyboardType(.default)
+                                .padding()
+                                .frame(height: 50)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(5)
+                                .padding(.horizontal)
+                            
+                            // Error message
+                            if let error = authManager.authError {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .padding(.top, 5)
+                            }
+                            
+                            // Privacy policy text
+                            Text("By signing up, you agree to our Terms, Data Policy and Cookies Policy.")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                                .padding(.top, 10)
+                            
+                            // Sign up button
+                            Button(action: {
+                                isLoading = true
+                                // Simulate network delay
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                    authManager.register(username: username, email: email, password: password, confirmPassword: confirmPassword)
+                                    isLoading = false
+                                    
+                                    // If registration was successful, navigate to app
+                                    if authManager.isAuthenticated {
+                                        navigateToApp = true
+                                        presentationMode.wrappedValue.dismiss()
+                                    }
+                                }
+                            }) {
+                                ZStack {
+                                    Rectangle()
+                                        .fill(Color.logoMain.opacity(formIsValid ? 1 : 0.5))
+                                        .frame(height: 50)
+                                        .cornerRadius(5)
+                                    
+                                    if isLoading {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Text("Create Account")
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                            }
+                            .disabled(!formIsValid || isLoading)
+                            .padding(.horizontal)
+                            .padding(.top, 10)
+                        }
+                        
+                        Spacer()
+                        
+                        // Already have an account prompt
+                        Button(action: {
+                            presentationMode.wrappedValue.dismiss()
+                        }) {
+                            HStack {
+                                Text("Already have an account?")
+                                    .foregroundColor(.gray)
+                                
+                                Text("Log In")
+                                    .fontWeight(.bold)
+                                    .foregroundColor(Color.logoMain)
+                            }
+                            .font(.footnote)
+                        }
+                        .padding(.bottom, 20)
+                    }
+                }
+            }
+            .navigationBarHidden(true)
+        }
+    }
+    
+    // Form validation check
+    private var formIsValid: Bool {
+        // Basic validation - just ensure fields aren't empty and passwords match
+        // Username should be at least 3 characters
+        // No limit on password characters or complexity
+        return !username.isEmpty && username.count >= 3 &&
+               !email.isEmpty &&
+               !password.isEmpty && password.count >= 6 &&
+               password == confirmPassword
+    }
+}
+
+// MARK: - App Content Wrapper (Shows launch screen first, then content)
+struct AppContentWrapper: View {
+    @ObservedObject var authManager: AuthManager
+    @State private var showLaunchScreen = true
+    
+    var body: some View {
+        ZStack {
+            ContentView()
+                .environmentObject(authManager)
+            
+            if showLaunchScreen {
+                LaunchScreen(showLaunchScreen: $showLaunchScreen)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+        .onAppear {
+            // Ensure the launch screen is always shown on app launch
+            showLaunchScreen = true
+        }
+    }
+}
+
 // MARK: - App Entry Point
 @main
 struct TuneBoxedSimpleApp: App {
+    @StateObject private var authManager = AuthManager()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if authManager.isAuthenticated {
+                AppContentWrapper(authManager: authManager)
+            } else {
+                LoginView(authManager: authManager)
+                    .onAppear {
+                        // Force clear all auth data on first launch to ensure clean state
+                        UserDefaults.standard.removeObject(forKey: "users")
+                        UserDefaults.standard.removeObject(forKey: "currentUser")
+                    }
+            }
+        }
+    }
+}
+
+// MARK: - Launch Screen
+struct LaunchScreen: View {
+    @Binding var showLaunchScreen: Bool
+    @State private var logoScale: CGFloat = 0.8
+    @State private var textOpacity: Double = 0.0
+    @State private var progress = 0.0
+    @State private var glowOpacity: Double = 0.0
+    @State private var rotationDegrees: Double = 0
+    
+    var body: some View {
+        ZStack {
+            // Dark futuristic background
+            Color.black
+                .ignoresSafeArea()
+            
+            // Animated gradient background
+            RadialGradient(
+                gradient: Gradient(colors: [Color.logoMain.opacity(0.3), Color.black.opacity(0.0)]),
+                center: .center,
+                startRadius: 1,
+                endRadius: 300
+            )
+            .scaleEffect(1.0 + (glowOpacity * 0.2))
+            .opacity(glowOpacity)
+            .ignoresSafeArea()
+            
+            // Background circles - futuristic tech feel
+            ZStack {
+                Circle()
+                    .stroke(Color.logoAccent.opacity(0.1), lineWidth: 1)
+                    .frame(width: 250, height: 250)
+                
+                Circle()
+                    .stroke(Color.logoMain.opacity(0.15), lineWidth: 1)
+                    .frame(width: 300, height: 300)
+                
+                Circle()
+                    .stroke(Color.neonBlue.opacity(0.1), lineWidth: 1)
+                    .frame(width: 350, height: 350)
+            }
+            .rotationEffect(Angle(degrees: rotationDegrees))
+            
+            VStack(spacing: 30) {
+                // Logo container with futuristic elements
+                ZStack {
+                    // Glowing outer circle
+                    Circle()
+                        .fill(Color.logoMain.opacity(0.2))
+                        .frame(width: 110, height: 110)
+                        .shadow(color: Color.logoMain.opacity(glowOpacity * 0.7), radius: 20, x: 0, y: 0)
+                    
+                    // Progress ring around logo
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.neonBlue, Color.logoMain, Color.neonPink]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ),
+                            style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                        )
+                        .frame(width: 102, height: 102)
+                        .rotationEffect(Angle(degrees: -90))
+                    
+                    // Background for logo
+                    Circle()
+                        .fill(Color.black)
+                        .frame(width: 90, height: 90)
+                        .shadow(color: Color.white.opacity(0.1), radius: 4, x: 0, y: 2)
+                    
+                    // The logo itself
+                    Image("Logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 70, height: 70)
+                        .clipShape(Circle())
+                        .scaleEffect(logoScale)
+                        .shadow(color: Color.logoMain.opacity(glowOpacity * 0.8), radius: 10, x: 0, y: 0)
+                }
+                .padding(.top, 40)
+                
+                // App Name - Futuristic style
+                Text("TuneBoxed")
+                    .font(.system(size: 38, weight: .bold))
+                    .foregroundColor(.white)
+                    .opacity(textOpacity)
+                    .shadow(color: Color.logoMain.opacity(glowOpacity * 0.8), radius: 10, x: 0, y: 0)
+                
+                // Updated tagline
+                Text("Your music taste, your sound.")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(.white.opacity(0.7))
+                    .opacity(textOpacity)
+                
+                Spacer()
+                
+                // Futuristic loading indicator
+                HStack(spacing: 8) {
+                    ForEach(0..<3) { i in
+                        Circle()
+                            .fill(Color.logoMain)
+                            .frame(width: 8, height: 8)
+                            .opacity(0.2 + (Double(i) * 0.3) + (glowOpacity * 0.3))
+                            .shadow(color: Color.logoMain.opacity(glowOpacity * 0.5), radius: 5, x: 0, y: 0)
+                    }
+                }
+                .padding(.bottom, 50)
+            }
+            .padding()
+        }
+        .onAppear {
+            // Start animations
+            withAnimation(Animation.spring(dampingFraction: 0.7).delay(0.2)) {
+                logoScale = 1.0
+            }
+            
+            withAnimation(Animation.easeIn(duration: 0.8).delay(0.3)) {
+                textOpacity = 1.0
+            }
+            
+            // Animate rotation
+            withAnimation(Animation.linear(duration: 20).repeatForever(autoreverses: false)) {
+                rotationDegrees = 360
+            }
+            
+            // Pulse glow effect
+            withAnimation(Animation.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
+                glowOpacity = 0.8
+            }
+            
+            // Animate the progress ring
+            Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { timer in
+                withAnimation {
+                    if progress < 1.0 {
+                        progress += 0.01
+                    } else {
+                        timer.invalidate()
+                        
+                        // Ensure the launch screen is shown for at least 3 seconds before dismissing
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            withAnimation(.easeOut(duration: 0.8)) {
+                                showLaunchScreen = false
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -99,117 +1088,9 @@ let communities = [
     "Hip Hop Heads"
 ]
 
-// MARK: - Launch Screen
-struct LaunchScreen: View {
-    @Binding var showLaunchScreen: Bool
-    @State private var logoScale: CGFloat = 0.8
-    @State private var textOpacity: Double = 0.0
-    @State private var progress = 0.0
-    
-    var body: some View {
-        ZStack {
-            // Clean white background like Tinder
-            Color.white
-                .ignoresSafeArea()
-            
-            VStack(spacing: 30) {
-                // Logo container - exactly like Tinder's style
-                ZStack {
-                    // Glowing outer circle
-                    Circle()
-                        .fill(Color.logoMain.opacity(0.1))
-                        .frame(width: 110, height: 110)
-                    
-                    // Progress ring around logo
-                    Circle()
-                        .trim(from: 0, to: progress)
-                        .stroke(
-                            LinearGradient(
-                                gradient: Gradient(colors: [Color.logoMain, Color.logoAccent]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ),
-                            style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                        )
-                        .frame(width: 102, height: 102)
-                        .rotationEffect(Angle(degrees: -90))
-                    
-                    // White background for logo
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 90, height: 90)
-                        .shadow(color: Color.gray.opacity(0.2), radius: 4, x: 0, y: 2)
-                    
-                    // The logo itself
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 70, height: 70)
-                        .clipShape(Circle())
-                        .scaleEffect(logoScale)
-                }
-                .padding(.top, 40)
-                
-                // App Name - Tinder style
-                Text("TuneBoxed")
-                    .font(.system(size: 38, weight: .bold))
-                    .foregroundColor(Color.logoMain)
-                    .opacity(textOpacity)
-                
-                // Updated tagline as requested
-                Text("Your music taste, your sound.")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(Color.gray.opacity(0.7))
-                    .opacity(textOpacity)
-                
-                Spacer()
-                
-                // Tinder-style loading indicator at bottom
-                HStack(spacing: 8) {
-                    ForEach(0..<3) { i in
-                        Circle()
-                            .fill(Color.logoMain)
-                            .frame(width: 8, height: 8)
-                            .opacity(0.2 + (Double(i) * 0.3))
-                    }
-                }
-                .padding(.bottom, 50)
-            }
-            .padding()
-        }
-        .onAppear {
-            // Start animations
-            withAnimation(Animation.spring(dampingFraction: 0.7).delay(0.2)) {
-                logoScale = 1.0
-            }
-            
-            withAnimation(Animation.easeIn(duration: 0.8).delay(0.3)) {
-                textOpacity = 1.0
-            }
-            
-            // Animate the progress ring
-            Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { timer in
-                withAnimation {
-                    if progress < 1.0 {
-                        progress += 0.01
-                    } else {
-                        timer.invalidate()
-                    }
-                }
-            }
-            
-            // Dismiss launch screen after 4 seconds (extended from 2.5)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                withAnimation(.easeOut(duration: 0.8)) {
-                    showLaunchScreen = false
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Post View
 struct PostView: View {
+    @EnvironmentObject var authManager: AuthManager
     @State private var post: Post
     @State private var showAnimation: Bool = false
     
@@ -225,19 +1106,17 @@ struct PostView: View {
                     .fill(Color.tuneBoxedGradient)
                     .frame(width: 40, height: 40)
                     .overlay(
-                        Text(String(post.username.prefix(1)).uppercased())
+                        Text(String(displayUsername.prefix(1).uppercased()))
                             .foregroundColor(.white)
                             .font(.instagramHeadline)
                     )
                 
-                Text(post.username)
+                Text("@\(displayUsername)")
                     .font(.instagramHeadline)
                 
-                if post.username == "boxzr" || post.username == "playboicarti" || post.username == "billyidol" || post.username == "ringostarr" {
-                    Image(systemName: "checkmark.seal.fill")
-                        .foregroundColor(.blue)
-                        .font(.system(size: 16))
-                }
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundColor(.blue)
+                    .font(.system(size: 16))
                 
                 Spacer()
                 
@@ -349,15 +1228,26 @@ struct PostView: View {
         default: return .clear
         }
     }
+    
+    // Helper property to get the username - use current user's username if the post is from "boxzr"
+    private var displayUsername: String {
+        if let currentUser = try? authManager.currentUser, post.username == "boxzr" {
+            return currentUser.username
+        }
+        return post.username
+    }
 }
 
 // MARK: - Feed View
 struct FeedView: View {
+    @EnvironmentObject var authManager: AuthManager
+    
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(samplePosts, id: \.id) { post in
                     PostView(post: post)
+                        .environmentObject(authManager)
                 }
             }
         }
@@ -999,7 +1889,7 @@ struct SongOfDayView: View {
             posts.append(Post(
                 songTitle: songTitles[i],
                 artist: artists[i],
-                username: ["musiclover", "genrefan", "boxzr", "tuneboxed", "soundhunter"][i % 5],
+                username: ["musiclover", "genrefan", "boxzr", "TuneBoxed", "soundhunter"][i % 5],
                 likes: Int.random(in: 50...1500),
                 type: i == 0 ? .songOfDay : .regular,
                 genre: dailyGenre
@@ -1129,10 +2019,99 @@ struct SongOfDayView: View {
     }
 }
 
+// MARK: - Edit Profile View
+struct EditProfileView: View {
+    @ObservedObject var authManager: AuthManager
+    @Environment(\.presentationMode) var presentationMode
+    
+    @State private var username: String = ""
+    @State private var firstName: String = ""
+    @State private var lastName: String = ""
+    @State private var bio: String = ""
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+    
+    init(authManager: AuthManager) {
+        self.authManager = authManager
+        _username = State(initialValue: authManager.currentUser?.username ?? "")
+        _firstName = State(initialValue: authManager.currentUser?.firstName ?? "")
+        _lastName = State(initialValue: authManager.currentUser?.lastName ?? "")
+        _bio = State(initialValue: authManager.currentUser?.bio ?? "")
+    }
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Profile Information")) {
+                    TextField("Username", text: $username)
+                    TextField("First Name", text: $firstName)
+                    TextField("Last Name", text: $lastName)
+                    
+                    TextField("Bio", text: $bio)
+                        .frame(height: 100)
+                }
+                
+                Section {
+                    Button(action: saveProfile) {
+                        Text("Save Changes")
+                            .fontWeight(.bold)
+                            .foregroundColor(.logoMain)
+                    }
+                }
+            }
+            .navigationTitle("Edit Profile")
+            .navigationBarItems(leading: Button(action: {
+                presentationMode.wrappedValue.dismiss()
+            }) {
+                Text("Cancel")
+            })
+            .alert(isPresented: $showAlert) {
+                Alert(
+                    title: Text(alertMessage.contains("successfully") ? "Success" : "Error"),
+                    message: Text(alertMessage),
+                    dismissButton: .default(Text("OK"), action: {
+                        if alertMessage.contains("successfully") {
+                            presentationMode.wrappedValue.dismiss()
+                        }
+                    })
+                )
+            }
+        }
+    }
+    
+    private func saveProfile() {
+        // Validate and update username
+        if username != authManager.currentUser?.username {
+            let success = authManager.updateUsername(newUsername: username)
+            if !success {
+                alertMessage = "Failed to update username. It may be taken or too short (min 3 characters)."
+                showAlert = true
+                return
+            }
+        }
+        
+        // Update name and bio
+        authManager.updateUserProfile(firstName: firstName, lastName: lastName, bio: bio)
+        
+        // Show success message
+        alertMessage = "Profile updated successfully!"
+        showAlert = true
+    }
+}
+
 // MARK: - Profile View
 struct ProfileView: View {
+    @EnvironmentObject var authManager: AuthManager
     @State private var selectedSegment = 0
+    @State private var showSettings = false
+    @State private var showEditProfile = false
     let segments = ["Posts", "Playlists", "Communities"]
+    
+    // Check if profile is complete
+    private var isProfileComplete: Bool {
+        guard let user = authManager.currentUser else { return false }
+        return !user.firstName.isEmpty && !user.lastName.isEmpty && !user.bio.isEmpty
+    }
     
     var body: some View {
         ScrollView {
@@ -1157,12 +2136,12 @@ struct ProfileView: View {
                                 .fill(Color.tuneBoxedGradient)
                                 .frame(width: 94, height: 94)
                                 .overlay(
-                                    Text("B")
+                                    Text(String(authManager.currentUser?.username.prefix(1).uppercased() ?? "B"))
                                         .foregroundColor(.white)
                                         .font(.system(size: 40, weight: .bold, design: .rounded))
                                 )
                             
-                            // Verified badge - Instagram style
+                            // Always show verified badge
                             Image(systemName: "checkmark.seal.fill")
                                 .foregroundColor(.blue)
                                 .background(Circle().fill(Color.white).frame(width: 22, height: 22))
@@ -1176,22 +2155,71 @@ struct ProfileView: View {
                         VStack(spacing: 4) {
                             Spacer(minLength: 60)
                             
-                            HStack {
-                                Text("boxzr")
-                                    .font(.system(size: 24, weight: .bold))
+                            // Display name if available
+                            if let firstName = authManager.currentUser?.firstName, let lastName = authManager.currentUser?.lastName, !firstName.isEmpty || !lastName.isEmpty {
+                                Text("\(firstName) \(lastName)")
+                                    .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(.primary)
+                            }
+                            
+                            // Username with @ symbol and verified badge
+                            HStack {
+                                Text("@\(authManager.currentUser?.username ?? "boxzr")")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.gray)
                                 
+                                // Always show verified badge
                                 Image(systemName: "checkmark.seal.fill")
                                     .foregroundColor(.blue)
                                     .font(.system(size: 14))
                             }
                             
-                            Text("I love the game, I love the hustle")
-                                .font(.instagramSubheadline)
-                                .foregroundColor(.gray)
-                                .multilineTextAlignment(.center)
+                            // Bio if available, otherwise a prompt
+                            if let bio = authManager.currentUser?.bio, !bio.isEmpty {
+                                Text(bio)
+                                    .font(.instagramSubheadline)
+                                    .foregroundColor(.gray)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                                    .padding(.top, 5)
+                                    .padding(.bottom, 15)
+                            } else {
+                                Text("No bio yet")
+                                    .font(.instagramSubheadline)
+                                    .foregroundColor(.gray)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                                    .padding(.top, 5)
+                                    .padding(.bottom, 5)
+                            }
+                            
+                            // Complete profile banner if profile is incomplete
+                            if !isProfileComplete {
+                                Button(action: {
+                                    showEditProfile = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "exclamationmark.circle.fill")
+                                            .foregroundColor(.white)
+                                        
+                                        Text("Complete your profile")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.white)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [Color.logoMain, Color.logoAccent]),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .cornerRadius(5)
+                                }
                                 .padding(.horizontal)
-                                .padding(.bottom, 15)
+                                .padding(.bottom, 10)
+                            }
                             
                             // Stats in Instagram style
                             HStack(spacing: 0) {
@@ -1206,7 +2234,7 @@ struct ProfileView: View {
                                 Spacer()
                                 
                                 VStack(spacing: 4) {
-                                    Text("245")
+                                    Text("\(authManager.currentUser?.followers ?? 245)")
                                         .font(.system(size: 18, weight: .bold))
                                     Text("Followers")
                                         .font(.instagramCaption)
@@ -1215,7 +2243,7 @@ struct ProfileView: View {
                                 Spacer()
                                 
                                 VStack(spacing: 4) {
-                                    Text("189")
+                                    Text("\(authManager.currentUser?.following ?? 189)")
                                         .font(.system(size: 18, weight: .bold))
                                     Text("Following")
                                         .font(.instagramCaption)
@@ -1225,16 +2253,35 @@ struct ProfileView: View {
                             }
                             .padding(.vertical, 8)
                             
-                            // Edit Profile Button - Instagram style
-                            Button(action: {}) {
-                                Text("Edit Profile")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.black)
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 8)
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color(.systemGray5))
-                                    .cornerRadius(5)
+                            // Buttons row
+                            HStack {
+                                // Edit Profile Button - Instagram style
+                                Button(action: {
+                                    showEditProfile = true
+                                }) {
+                                    Text("Edit Profile")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.black)
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 8)
+                                        .frame(maxWidth: .infinity)
+                                        .background(Color(.systemGray5))
+                                        .cornerRadius(5)
+                                }
+                                
+                                // Logout button
+                                Button(action: {
+                                    authManager.logout()
+                                }) {
+                                    Text("Logout")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 8)
+                                        .frame(maxWidth: .infinity)
+                                        .background(Color.red.opacity(0.8))
+                                        .cornerRadius(5)
+                                }
                             }
                             .padding(.horizontal)
                             .padding(.bottom, 12)
@@ -1348,99 +2395,175 @@ struct ProfileView: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarItems(trailing:
+            Button(action: {
+                showSettings = true
+            }) {
+                Image(systemName: "gearshape.fill")
+                    .foregroundColor(.primary)
+            }
+        )
+        .sheet(isPresented: $showSettings) {
+            SettingsView(authManager: authManager)
+        }
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileView(authManager: authManager)
+        }
     }
 }
 
-// Helper for rounded corners
-extension View {
-    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape(RoundedCorner(radius: radius, corners: corners))
-    }
-}
-
-struct RoundedCorner: Shape {
-    var radius: CGFloat = .infinity
-    var corners: UIRectCorner = .allCorners
-
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius))
-        return Path(path.cgPath)
+// MARK: - Settings View
+struct SettingsView: View {
+    @ObservedObject var authManager: AuthManager
+    @Environment(\.presentationMode) var presentationMode
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section(header: Text("Account")) {
+                    HStack {
+                        Image(systemName: "person.fill")
+                            .foregroundColor(.logoMain)
+                            .frame(width: 25)
+                        Text("Username")
+                        Spacer()
+                        Text(authManager.currentUser?.username ?? "")
+                            .foregroundColor(.gray)
+                    }
+                    
+                    HStack {
+                        Image(systemName: "envelope.fill")
+                            .foregroundColor(.logoMain)
+                            .frame(width: 25)
+                        Text("Email")
+                        Spacer()
+                        Text(authManager.currentUser?.email ?? "")
+                            .foregroundColor(.gray)
+                    }
+                }
+                
+                Section(header: Text("App Settings")) {
+                    NavigationLink(destination: Text("Notifications settings would go here")) {
+                        HStack {
+                            Image(systemName: "bell.fill")
+                                .foregroundColor(.logoMain)
+                                .frame(width: 25)
+                            Text("Notifications")
+                        }
+                    }
+                    
+                    NavigationLink(destination: Text("Privacy settings would go here")) {
+                        HStack {
+                            Image(systemName: "lock.fill")
+                                .foregroundColor(.logoMain)
+                                .frame(width: 25)
+                            Text("Privacy")
+                        }
+                    }
+                    
+                    NavigationLink(destination: Text("Subscription settings would go here")) {
+                        HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.logoMain)
+                                .frame(width: 25)
+                            Text("Premium Subscription")
+                        }
+                    }
+                }
+                
+                Section {
+                    Button(action: {
+                        authManager.logout()
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.right.square.fill")
+                                .foregroundColor(.red)
+                                .frame(width: 25)
+                            Text("Logout")
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+            }
+            .listStyle(InsetGroupedListStyle())
+            .navigationTitle("Settings")
+            .navigationBarItems(leading: Button(action: {
+                presentationMode.wrappedValue.dismiss()
+            }) {
+                Image(systemName: "xmark")
+                    .foregroundColor(.primary)
+            })
+        }
     }
 }
 
 // MARK: - Content View
 struct ContentView: View {
-    @State private var showLaunchScreen = true
+    @EnvironmentObject var authManager: AuthManager
     @State private var selectedTab = 0
     @State private var tabBarVisible = false
     
     var body: some View {
-        ZStack {
-            TabView(selection: $selectedTab) {
-                NavigationView {
-                    SongOfDayView()
-                }
-                .tabItem {
-                    Image(systemName: "calendar")
-                    Text("Daily")
-                }
-                .tag(0)
-                
-                NavigationView {
-                    FeedView()
-                }
-                .tabItem {
-                    Image(systemName: "music.note.list")
-                    Text("Feed")
-                }
-                .tag(1)
-                
-                NavigationView {
-                    ShowerBeerView()
-                }
-                .tabItem {
-                    VStack {
-                        Image(systemName: "drop.fill")
-                        Text("Shower Beer")
-                    }
-                }
-                .tag(2)
-                
-                NavigationView {
-                    CommunitiesView()
-                }
-                .tabItem {
-                    VStack {
-                        Image(systemName: "person.3.fill")
-                        Text("Communities")
-                    }
-                }
-                .tag(3)
-                
-                NavigationView {
-                    ProfileView()
-                }
-                .tabItem {
-                    Image(systemName: "person.fill")
-                    Text("Profile")
-                }
-                .tag(4)
+        TabView(selection: $selectedTab) {
+            NavigationView {
+                SongOfDayView()
             }
-            .accentColor(.primaryPurple)
-            .opacity(tabBarVisible ? 1 : 0)
-            .onAppear {
-                // Animate tab bar appearance after launch screen dismisses
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                    withAnimation(.easeIn(duration: 0.5)) {
-                        tabBarVisible = true
-                    }
-                }
+            .tabItem {
+                Image(systemName: "calendar")
+                Text("Daily")
             }
+            .tag(0)
             
-            if showLaunchScreen {
-                LaunchScreen(showLaunchScreen: $showLaunchScreen)
-                    .transition(.opacity)
-                    .zIndex(1)
+            NavigationView {
+                FeedView()
+            }
+            .tabItem {
+                Image(systemName: "music.note.list")
+                Text("Feed")
+            }
+            .tag(1)
+            
+            NavigationView {
+                ShowerBeerView()
+            }
+            .tabItem {
+                VStack {
+                    Image(systemName: "drop.fill")
+                    Text("Shower Beer")
+                }
+            }
+            .tag(2)
+            
+            NavigationView {
+                CommunitiesView()
+            }
+            .tabItem {
+                VStack {
+                    Image(systemName: "person.3.fill")
+                    Text("Communities")
+                }
+            }
+            .tag(3)
+            
+            NavigationView {
+                ProfileView()
+                    .environmentObject(authManager)
+            }
+            .tabItem {
+                Image(systemName: "person.fill")
+                Text("Profile")
+            }
+            .tag(4)
+        }
+        .accentColor(.primaryPurple)
+        .opacity(tabBarVisible ? 1 : 0)
+        .onAppear {
+            // Animate tab bar appearance
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                withAnimation(.easeIn(duration: 0.5)) {
+                    tabBarVisible = true
+                }
             }
         }
     }
